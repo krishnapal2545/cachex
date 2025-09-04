@@ -5,7 +5,7 @@ import "time"
 // Item represents a cached value with an expiration time.
 type Item[V any] struct {
 	Value      V
-	Expiration int64  // 0 means never expires
+	Expiration int64 // 0 means never expires
 }
 
 type janitor struct {

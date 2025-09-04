@@ -49,6 +49,25 @@ func (sc *ShardedCache[K, V]) Delete(key K) {
 	sc.shards[idx].delete(key)
 }
 
+// Items returns a copy of all key-value pairs across all shards.
+func (sc *ShardedCache[K, V]) Items() map[K]V {
+	result := make(map[K]V)
+
+	now := time.Now().UnixNano()
+
+	for _, shard := range sc.shards {
+		shard.mu.RLock()
+		for k, it := range shard.items {
+			if it.Expiration == 0 || it.Expiration > now {
+				result[k] = it.Value
+			}
+		}
+		shard.mu.RUnlock()
+	}
+
+	return result
+}
+
 func (sc *ShardedCache[K, V]) cleanup() {
 	for _, s := range sc.shards {
 		s.cleanup()

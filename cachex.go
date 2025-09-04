@@ -64,6 +64,22 @@ func (c *Cache[K, V]) Delete(key K) {
 	c.mu.Unlock()
 }
 
+// Items returns a copy of all key-value pairs currently in the cache.
+func (c *Cache[K, V]) Items() map[K]V {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	result := make(map[K]V, len(c.items))
+	now := time.Now().UnixNano()
+
+	for k, it := range c.items {
+		if it.Expiration == 0 || it.Expiration > now {
+			result[k] = it.Value
+		}
+	}
+	return result
+}
+
 // must implement cleanupTarget
 func (c *Cache[K, V]) cleanup() {
 	now := time.Now().UnixNano()
