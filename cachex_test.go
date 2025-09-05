@@ -1,6 +1,7 @@
 package cachex
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
@@ -61,6 +62,25 @@ func TestCacheLen(t *testing.T) {
 
 	if c.Len() != 1 {
 		t.Fatalf("expected length 1 after delete, got %d", c.Len())
+	}
+}
+
+func TestNestedCacheLogs(t *testing.T) {
+	outer := New[string, any](200*time.Millisecond, 100*time.Millisecond)
+	inner := New[string, string](time.Minute, time.Minute)
+
+	outer.Set("nested", inner)
+	fmt.Println("Set nested cache inside outer")
+
+	// Case 1: manual delete
+	outer.Delete("nested")
+
+	// Case 2: set again, let it expire
+	outer.Set("nested", inner)
+	time.Sleep(500 * time.Millisecond)
+
+	if _, ok := outer.Get("nested"); ok {
+		t.Fatalf("expected nested cache to expire")
 	}
 }
 

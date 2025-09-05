@@ -17,3 +17,7 @@ type janitor struct {
 type cleanupTarget interface {
 	cleanup()
 }
+
+type Closable interface {
+	Close()
+}

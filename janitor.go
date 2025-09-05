@@ -4,7 +4,6 @@ import (
 	"time"
 )
 
-
 // run starts a janitor goroutine that periodically calls cleanup()
 // on the target until Stop() is called.
 func (j *janitor) run(target cleanupTarget) {
@@ -24,7 +23,12 @@ func (j *janitor) run(target cleanupTarget) {
 
 // stopJanitor stops the janitor goroutine.
 func (j *janitor) stopJanitor() {
-	close(j.stop)
+	select {
+	case <-j.stop:
+		// already closed, do nothing
+	default:
+		close(j.stop)
+	}
 }
 
 // newJanitor creates a janitor with given interval.

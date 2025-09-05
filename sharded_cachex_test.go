@@ -80,13 +80,12 @@ func TestShardedCacheLen(t *testing.T) {
 func TestShardedCacheMillionLen(t *testing.T) {
 	sc := NewSharded[string, int](16, time.Minute, time.Minute)
 
-	
 	for i := 0; i < 1_000_000; i++ {
 		// keys cycle through 26 unique values
 		key := "key_" + strconv.Itoa(i) // unique key for every insert
 		sc.Set(key, i)
 	}
-	
+
 	start := time.Now()
 	if sc.Len() != 1_000_000 {
 		t.Fatalf("expected length 1,000,000, got %d", sc.Len())
@@ -94,6 +93,63 @@ func TestShardedCacheMillionLen(t *testing.T) {
 	elapsed := time.Since(start)
 
 	fmt.Printf("Inserted 1,000,000 items into ShardedCache, final Len=%d, took=%s\n", sc.Len(), elapsed)
+}
+
+func TestNestedShardedCache(t *testing.T) {
+	outer := NewSharded[string, any](8, 2*time.Second, time.Second)
+	inner := NewSharded[string, string](4, 2*time.Second, time.Second)
+
+	// Put something into the inner cache
+	inner.Set("foo", "bar")
+
+	// Insert inner sharded cache into the outer
+	outer.Set("nested", inner)
+	fmt.Println("Set nested sharded cache inside outer")
+
+	// Delete manually
+	outer.Delete("nested")
+
+	// Reinsert for expiry test
+	outer.Set("nested", inner)
+
+	// Wait until janitor expiry runs
+	time.Sleep(3 * time.Second)
+}
+
+func TestHybridNestedCache(t *testing.T) {
+	// Outer: ShardedCache
+	outer := NewSharded[string, any](8, 2*time.Second, time.Second)
+
+	// Mid: Normal Cache
+	mid := New[string, any](2*time.Second, time.Second)
+
+	// Inner: ShardedCache
+	inner := NewSharded[string, string](4, 2*time.Second, time.Second)
+
+	// Put data into inner
+	inner.Set("deepKey", "deepValue")
+
+	// Nest inner -> mid
+	mid.Set("innerSharded", inner)
+
+	// Nest mid -> outer
+	outer.Set("midCache", mid)
+
+	fmt.Println("✅ Set hybrid nested cache: Sharded -> Cache -> Sharded")
+
+	start := time.Now()
+	// Manual delete
+	outer.Delete("midCache")
+
+	elapsed := time.Since(start)
+
+	fmt.Printf("Deleted time taken : %v\n", elapsed)
+
+	// Reinsert for expiry test
+	outer.Set("midCache", mid)
+
+	// Wait for janitor to trigger
+	time.Sleep(3 * time.Second)
 }
 
 // Benchmark: Concurrent Get on 1,000,000 items

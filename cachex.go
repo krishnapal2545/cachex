@@ -67,7 +67,10 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 // Delete removes a key from the cache.
 func (c *Cache[K, V]) Delete(key K) {
 	c.mu.Lock()
-	if _, exists := c.items[key]; exists {
+	if it, exists := c.items[key]; exists {
+		if closable, ok := any(it.Value).(Closable); ok {
+			closable.Close()
+		}
 		delete(c.items, key)
 		atomic.AddInt64(&c.count, -1)
 	}
@@ -111,6 +114,9 @@ func (c *Cache[K, V]) cleanup() {
 	c.mu.Lock()
 	for k, v := range c.items {
 		if v.Expiration > 0 && now > v.Expiration {
+			if closable, ok := any(v.Value).(Closable); ok {
+				closable.Close()
+			}
 			delete(c.items, k)
 			atomic.AddInt64(&c.count, -1)
 		}
