@@ -43,6 +43,27 @@ func TestExpiration(t *testing.T) {
 	}
 }
 
+func TestCacheLen(t *testing.T) {
+	c := New[string, int](time.Minute, time.Minute)
+
+	if c.Len() != 0 {
+		t.Fatalf("expected length 0, got %d", c.Len())
+	}
+
+	c.Set("a", 1)
+	c.Set("b", 2)
+
+	if c.Len() != 2 {
+		t.Fatalf("expected length 2, got %d", c.Len())
+	}
+
+	c.Delete("a")
+
+	if c.Len() != 1 {
+		t.Fatalf("expected length 1 after delete, got %d", c.Len())
+	}
+}
+
 // ---------- Benchmark ----------
 
 // Benchmark with 1,000,000 items and concurrent Get

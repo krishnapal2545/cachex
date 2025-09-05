@@ -1,6 +1,8 @@
 package cachex
 
 import (
+	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -8,7 +10,6 @@ import (
 
 func TestShardedCacheBasic(t *testing.T) {
 	sc := NewSharded[string, int](16, time.Minute, time.Second*10)
-	defer sc.Close()
 
 	sc.Set("foo", 42)
 
@@ -28,7 +29,6 @@ func TestShardedCacheConcurrentReadWrite(t *testing.T) {
 	const iterations = 5000
 
 	sc := NewSharded[int, int](32, time.Minute, time.Second*10)
-	defer sc.Close()
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
@@ -54,13 +54,53 @@ func TestShardedCacheConcurrentReadWrite(t *testing.T) {
 	wg.Wait()
 }
 
+func TestShardedCacheLen(t *testing.T) {
+	sc := NewSharded[string, int](8, time.Minute, time.Minute)
+
+	if sc.Len() != 0 {
+		t.Fatalf("expected length 0, got %d", sc.Len())
+	}
+
+	// Distribute across shards
+	for i := range 100 {
+		sc.Set(string(rune('a'+(i%26))), i)
+	}
+
+	if sc.Len() != 26 { // keys repeat, so should stabilize at 26
+		t.Fatalf("expected length 26, got %d", sc.Len())
+	}
+
+	sc.Delete("a")
+
+	if sc.Len() != 25 {
+		t.Fatalf("expected length 25 after delete, got %d", sc.Len())
+	}
+}
+
+func TestShardedCacheMillionLen(t *testing.T) {
+	sc := NewSharded[string, int](16, time.Minute, time.Minute)
+
+	
+	for i := 0; i < 1_000_000; i++ {
+		// keys cycle through 26 unique values
+		key := "key_" + strconv.Itoa(i) // unique key for every insert
+		sc.Set(key, i)
+	}
+	
+	start := time.Now()
+	if sc.Len() != 1_000_000 {
+		t.Fatalf("expected length 1,000,000, got %d", sc.Len())
+	}
+	elapsed := time.Since(start)
+
+	fmt.Printf("Inserted 1,000,000 items into ShardedCache, final Len=%d, took=%s\n", sc.Len(), elapsed)
+}
 
 // Benchmark: Concurrent Get on 1,000,000 items
 func BenchmarkShardedCacheConcurrentGet(b *testing.B) {
 	const N = 1_000_000
 
 	sc := NewSharded[int, int](32, time.Minute, time.Second*30)
-	defer sc.Close()
 
 	// preload data
 	for i := range N {
@@ -81,7 +121,6 @@ func BenchmarkShardedCacheConcurrentGet(b *testing.B) {
 func BenchmarkShardedCacheConcurrentReadWrite(b *testing.B) {
 	const N = 1_000_000
 	sc := NewSharded[int, int](32, time.Minute, time.Second*30)
-	defer sc.Close()
 
 	b.ResetTimer()
 

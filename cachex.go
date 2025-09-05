@@ -2,6 +2,7 @@ package cachex
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -11,6 +12,7 @@ type Cache[K comparable, V any] struct {
 	mu      sync.RWMutex
 	ttl     time.Duration
 	janitor *janitor
+	count   int64 // <- new: live counter
 }
 
 // New creates a new cache instance with given default TTL and cleanup interval.
@@ -33,11 +35,16 @@ func (c *Cache[K, V]) Set(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	_, exists := c.items[key]
+
 	var exp int64
 	if c.ttl > 0 {
 		exp = time.Now().Add(c.ttl).UnixNano()
 	}
 	c.items[key] = Item[V]{Value: value, Expiration: exp}
+	if !exists {
+		atomic.AddInt64(&c.count, 1)
+	}
 }
 
 // Get retrieves a value by key. If expired or missing, returns zero value.
@@ -60,8 +67,26 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 // Delete removes a key from the cache.
 func (c *Cache[K, V]) Delete(key K) {
 	c.mu.Lock()
-	delete(c.items, key)
+	if _, exists := c.items[key]; exists {
+		delete(c.items, key)
+		atomic.AddInt64(&c.count, -1)
+	}
 	c.mu.Unlock()
+}
+
+func (c *Cache[K, V]) Len() int {
+	return int(atomic.LoadInt64(&c.count))
+}
+
+func (c *Cache[K, V]) Range(f func(K, V) bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for k, it := range c.items {
+		if !f(k, it.Value) {
+			return
+		}
+	}
 }
 
 // Items returns a copy of all key-value pairs currently in the cache.
@@ -87,6 +112,7 @@ func (c *Cache[K, V]) cleanup() {
 	for k, v := range c.items {
 		if v.Expiration > 0 && now > v.Expiration {
 			delete(c.items, k)
+			atomic.AddInt64(&c.count, -1)
 		}
 	}
 	c.mu.Unlock()
@@ -96,4 +122,11 @@ func (c *Cache[K, V]) Close() {
 	if c.janitor != nil {
 		c.janitor.stopJanitor()
 	}
+}
+
+func (c *Cache[K, V]) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items = make(map[K]Item[V])
+	c.count = 0
 }
