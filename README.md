@@ -1,7 +1,7 @@
 # cachex
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/krishnapal2545/cachex/main/docs/squirrel_cache.png" alt="CacheX Logo" width="200"/>
+  <img src="https://raw.githubusercontent.com/krishnapal2545/cachex/main/squirrel_cache.png" alt="CacheX Logo" width="200"/>
 </p>
 
 
