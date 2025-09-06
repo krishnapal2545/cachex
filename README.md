@@ -1,5 +1,7 @@
 # cachex
 
+<img src="docs/squirrel_cache.png" alt="CacheX mascot" width="150" align="right">
+
 🚀 A lightweight in-memory cache library for Go with **TTL (Time-To-Live)** and optional **sharding** for high concurrency.  
 
 Supports:
